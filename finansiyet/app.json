@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "Harcamalarım",
-    "slug": "harcamalarim",
+    "slug": "finansiyet",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "harcamalarim",
+    "scheme": "finansiyet",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
