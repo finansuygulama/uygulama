@@ -1,4 +1,4 @@
-// Fallback for using MaterialIcons on Android and web.
+
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SymbolWeight, SymbolViewProps } from 'expo-symbols';
@@ -20,6 +20,13 @@ const MAPPING = {
   'chevron.right': 'chevron-right',
   'pencil': 'edit',
   'chart.pie.fill': 'pie-chart',
+  'ellipsis': 'more-vert',
+  'gear': 'settings',
+  'calendar': 'calendar-today',
+  'plus': 'add',
+  'trash': 'delete',
+  'clock.fill': 'schedule',
+  'gearshape.fill': 'settings',
 } as IconMapping;
 
 /**

@@ -1,83 +1,138 @@
-import * as SQLite from 'expo-sqlite';
-import { DB_NAME, TransactionType } from '../utils/constants';
+import * as FileSystem from 'expo-file-system';
+import { TransactionType } from '../utils/constants';
+import { parseTransactions } from '../utils/parser';
 
-// Open or create the local database
-// Expo SDK 50+ uses openDatabaseSync or openDatabaseAsync.
-// SDK 54 uses openDatabaseSync.
-const db = SQLite.openDatabaseSync(DB_NAME);
+const documentDirectory = FileSystem.documentDirectory;
+const NOTES_DIR = documentDirectory ? `${documentDirectory}notes/` : '';
 
 export interface TransactionRecord {
-  id: number;
-  note_id: number;
+  id?: number;
+  note_id?: number; 
   type: TransactionType;
   amount: number;
   description: string;
   dateStr: string;
+  time?: string;
 }
 
 export interface NoteRecord {
-  id: number;
+  id?: number;
   content: string;
   dateStr: string;
   created_at: string;
 }
 
-export const initDB = () => {
-  db.execSync(`
-    CREATE TABLE IF NOT EXISTS notes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      content TEXT NOT NULL,
-      dateStr TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    );
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      note_id INTEGER,
-      type TEXT NOT NULL,
-      amount REAL NOT NULL,
-      description TEXT,
-      dateStr TEXT NOT NULL,
-      FOREIGN KEY(note_id) REFERENCES notes(id) ON DELETE CASCADE
-    );
-  `);
+const ensureDir = async () => {
+  const dirInfo = await FileSystem.getInfoAsync(NOTES_DIR);
+  if (!dirInfo.exists) {
+    await FileSystem.makeDirectoryAsync(NOTES_DIR, { intermediates: true });
+  }
 };
 
-// Insert a note and its parsed transactions
-export const saveNote = (content: string, dateStr: string, parsedTransactions: Omit<TransactionRecord, 'id' | 'note_id' | 'dateStr'>[]) => {
-  let noteId: number | null = null;
-  
-  db.withTransactionSync(() => {
-    // 1. Check if note for today exists, update or insert
-    const existing = db.getFirstSync<{id: number}>('SELECT id FROM notes WHERE dateStr = ?', [dateStr]);
+export const initDB = async () => {
+  await ensureDir();
+  console.log('Notes directory initialized');
+};
+
+export const saveNote = async (content: string, dateStr: string) => {
+  await ensureDir();
+  const fileUri = `${NOTES_DIR}${dateStr}.md`;
+  await FileSystem.writeAsStringAsync(fileUri, content);
+  return dateStr;
+};
+
+export const appendNote = async (content: string, dateStr: string) => {
+  const existing = await getNoteByDate(dateStr);
+  const updatedContent = existing 
+    ? `${existing.content}\n${content}` 
+    : content;
+  return await saveNote(updatedContent, dateStr);
+};
+
+export const getNoteByDate = async (dateStr: string): Promise<NoteRecord | null> => {
+  try {
+    const fileUri = `${NOTES_DIR}${dateStr}.md`;
+    const info = await FileSystem.getInfoAsync(fileUri);
+    if (!info.exists) return null;
     
-    if (existing) {
-      noteId = existing.id;
-      db.runSync('UPDATE notes SET content = ? WHERE id = ?', [content, noteId]);
-      // Clear old transactions for this note so we can insert the updated ones
-      db.runSync('DELETE FROM transactions WHERE note_id = ?', [noteId]);
-    } else {
-      const result = db.runSync('INSERT INTO notes (content, dateStr) VALUES (?, ?)', [content, dateStr]);
-      noteId = result.lastInsertRowId;
-    }
+    const content = await FileSystem.readAsStringAsync(fileUri);
+    return {
+      content,
+      dateStr,
+      created_at: info.modificationTime?.toString() || new Date().toISOString(),
+    };
+  } catch (e) {
+    console.warn('getNoteByDate failed:', e);
+    return null;
+  }
+};
 
-    // 2. Insert new parsed transactions
-    if (parsedTransactions.length > 0 && noteId !== null) {
-      const stmt = db.prepareSync('INSERT INTO transactions (note_id, type, amount, description, dateStr) VALUES (?, ?, ?, ?, ?)');
-      for (const tx of parsedTransactions) {
-        stmt.executeSync([noteId, tx.type, tx.amount, tx.description, dateStr]);
+export const getTransactionsByMonth = async (monthStr: string): Promise<TransactionRecord[]> => {
+  try {
+    await ensureDir();
+    const files = await FileSystem.readDirectoryAsync(NOTES_DIR);
+    const monthFiles = files.filter(f => f.startsWith(monthStr) && f.endsWith('.md'));
+    
+    const allTransactions: TransactionRecord[] = [];
+    
+    for (const fileName of monthFiles) {
+      const dateStr = fileName.replace('.md', '');
+      const content = await FileSystem.readAsStringAsync(`${NOTES_DIR}${fileName}`);
+      const parsed = parseTransactions(content);
+      
+      for (const tx of parsed) {
+        allTransactions.push({
+          ...tx,
+          dateStr
+        });
       }
-      stmt.finalizeSync();
     }
-  });
-  
-  return noteId;
+    
+    return allTransactions.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+  } catch (e) {
+    console.warn('getTransactionsByMonth failed:', e);
+    return [];
+  }
 };
 
-export const getNoteByDate = (dateStr: string): NoteRecord | null => {
-  return db.getFirstSync<NoteRecord>('SELECT * FROM notes WHERE dateStr = ?', [dateStr]);
+export const getAllTransactions = async (): Promise<TransactionRecord[]> => {
+  try {
+    await ensureDir();
+    const files = await FileSystem.readDirectoryAsync(NOTES_DIR);
+    const mdFiles = files.filter(f => f.endsWith('.md'));
+    
+    const allTransactions: TransactionRecord[] = [];
+    
+    for (const fileName of mdFiles) {
+      const dateStr = fileName.replace('.md', '');
+      const content = await FileSystem.readAsStringAsync(`${NOTES_DIR}${fileName}`);
+      const parsed = parseTransactions(content);
+      
+      for (const tx of parsed) {
+        allTransactions.push({
+          ...tx,
+          dateStr
+        });
+      }
+    }
+    
+    return allTransactions.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
+  } catch (e) {
+    console.warn('getAllTransactions failed:', e);
+    return [];
+  }
 };
 
-export const getTransactionsByMonth = (monthStr: string): TransactionRecord[] => {
-  // monthStr like '2026-04'
-  return db.getAllSync<TransactionRecord>('SELECT * FROM transactions WHERE dateStr LIKE ? ORDER BY dateStr DESC', [`${monthStr}%`]);
+export const clearAllData = async () => {
+  try {
+    await ensureDir();
+    const files = await FileSystem.readDirectoryAsync(NOTES_DIR);
+    for (const file of files) {
+      if (file.endsWith('.md')) {
+        await FileSystem.deleteAsync(`${NOTES_DIR}${file}`, { idempotent: true });
+      }
+    }
+  } catch (e) {
+    console.warn('clearAllData failed:', e);
+  }
 };

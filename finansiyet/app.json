@@ -1,25 +1,27 @@
 {
   "expo": {
-    "name": "finansiyet",
-    "slug": "finansiyet",
+    "name": "Harcamalarım",
+    "slug": "harcamalarim",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "finansiyet",
+    "scheme": "harcamalarim",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
+    "updates": {
+      "url": "https://u.expo.dev/77050fdf-cde3-4eb2-993a-d9a5dc55e232"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
+
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.izanan.harcamalarim"
     },
     "web": {
       "output": "static",
@@ -38,12 +40,17 @@
             "backgroundColor": "#000000"
           }
         }
-      ],
-      "expo-sqlite"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "77050fdf-cde3-4eb2-993a-d9a5dc55e232"
+      }
     }
   }
 }
